@@ -83,6 +83,22 @@ module Sentry
         end
 
         if result.bytesize > Event::MAX_SERIALIZED_PAYLOAD_SIZE
+          if single_exceptions = item.payload.dig(:exception, :values)
+            single_exceptions.each do |single_exception|
+              traces = single_exception.dig(:stacktrace, :frames)
+              traces.replace(traces[-10..-1]) if traces && traces.size > 10
+            end
+          elsif single_exceptions = item.payload.dig("exception", "values")
+            single_exceptions.each do |single_exception|
+              traces = single_exception.dig("stacktrace", "frames")
+              traces.replace(traces[-10..-1]) if traces && traces.size > 10
+            end
+          end
+
+          result = item.to_s
+        end
+
+        if result.bytesize > Event::MAX_SERIALIZED_PAYLOAD_SIZE
           size_breakdown = item.payload.map do |key, value|
             "#{key}: #{JSON.generate(value).bytesize}"
           end.join(", ")
