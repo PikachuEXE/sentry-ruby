@@ -211,6 +211,18 @@ module Sentry
     # @return [Boolean]
     attr_accessor :auto_session_tracking
 
+    # When an error like `SystemStackError` is captured
+    # The payload to Sentry would become too large
+    # due to a large no. of stacktrace frames
+    #
+    # In this case the SDK will keep only some stacktrace frames to reduce payload size
+    # This value determines how many frames would be kept in this case **only**
+    #
+    # Warning: A large value might cause the payload size to be still too large
+    # The SDK will still drop the whole event making the error unreported
+    # @return [Integer]
+    attr_accessor :max_stacktrace_frames
+
     # these are not config options
     # @!visibility private
     attr_reader :errors, :gem_specs
@@ -266,6 +278,7 @@ module Sentry
       self.skip_rake_integration = false
       self.send_client_reports = true
       self.auto_session_tracking = true
+      self.max_stacktrace_frames = 10
       self.trusted_proxies = []
       self.dsn = ENV['SENTRY_DSN']
       self.server_name = server_name_from_env

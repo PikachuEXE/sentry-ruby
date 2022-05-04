@@ -148,6 +148,7 @@ RSpec.describe Sentry::Transport do
           Regexp.new("^(#{project_root}/)?#{Sentry::Backtrace::APP_DIRS_PATTERN}")
         end
         let(:frame_list_size) { 2000 }
+        let(:max_stacktrace_frames) { configuration.max_stacktrace_frames }
 
         before do
           single_exception = event.exception.instance_variable_get(:@values)[0]
@@ -165,33 +166,49 @@ RSpec.describe Sentry::Transport do
           expect(serialized_result.bytesize).to be > Sentry::Event::MAX_SERIALIZED_PAYLOAD_SIZE
         end
 
-        it "keeps some stacktrace frames and carry on" do
-          data, _ = subject.serialize_envelope(envelope)
-          expect(data.bytesize).to be < Sentry::Event::MAX_SERIALIZED_PAYLOAD_SIZE
+        shared_examples "large payload due to stacktrace frames handling" do
+          it "keeps some stacktrace frames and carry on" do
+            data, _ = subject.serialize_envelope(envelope)
+            expect(data.bytesize).to be < Sentry::Event::MAX_SERIALIZED_PAYLOAD_SIZE
 
-          expect(envelope.items.count).to eq(1)
+            expect(envelope.items.count).to eq(1)
 
-          event_item = envelope.items.first
-          frames = event_item.payload[:exception][:values][0][:stacktrace][:frames]
-          expect(frames.length).to eq(10)
-          expect(frames[-1][:lineno]).to eq(frame_list_size)
-          expect(frames[-1][:filename]).to eq('app.rb')
-          expect(frames[-1][:function]).to eq('/')
-        end
+            event_item = envelope.items.first
+            frames = event_item.payload[:exception][:values][0][:stacktrace][:frames]
+            expect(frames.length).to eq(max_stacktrace_frames)
+            expect(frames[-1][:lineno]).to eq(frame_list_size)
+            expect(frames[-1][:filename]).to eq('app.rb')
+            expect(frames[-1][:function]).to eq('/')
+          end
 
-        context "if it's still oversized" do
-          before do
-            100.times do |i|
-              event.contexts["context_#{i}"] = "s" * Sentry::Event::MAX_MESSAGE_SIZE_IN_BYTES
+          context "if it's still oversized" do
+            before do
+              100.times do |i|
+                event.contexts["context_#{i}"] = "s" * Sentry::Event::MAX_MESSAGE_SIZE_IN_BYTES
+              end
+            end
+
+            it "rejects the item and logs attributes size breakdown" do
+              data, _ = subject.serialize_envelope(envelope)
+              expect(data).to be_nil
+              expect(io.string).not_to match(/Sending envelope with items \[event\]/)
+              expect(io.string).to match(/tags: 2, contexts: 820791, extra: 2/)
             end
           end
+        end
 
-          it "rejects the item and logs attributes size breakdown" do
-            data, _ = subject.serialize_envelope(envelope)
-            expect(data).to be_nil
-            expect(io.string).not_to match(/Sending envelope with items \[event\]/)
-            expect(io.string).to match(/tags: 2, contexts: 820791, extra: 2/)
+
+        it_behaves_like "large payload due to stacktrace frames handling"
+
+        context "when config.max_stacktrace_frames contains non-default value" do
+          let(:max_stacktrace_frames) { 50 }
+          let(:client) do
+            Sentry::Client.new(
+              configuration.tap{|c| c.max_stacktrace_frames = max_stacktrace_frames }
+            )
           end
+
+          it_behaves_like "large payload due to stacktrace frames handling"
         end
       end
     end

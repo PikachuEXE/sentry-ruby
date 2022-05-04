@@ -34,6 +34,7 @@ module Sentry
       @dsn = configuration.dsn
       @rate_limits = {}
       @send_client_reports = configuration.send_client_reports
+      @max_stacktrace_frames = configuration.max_stacktrace_frames
 
       if @send_client_reports
         @discarded_events = Hash.new(0)
@@ -86,12 +87,16 @@ module Sentry
           if single_exceptions = item.payload.dig(:exception, :values)
             single_exceptions.each do |single_exception|
               traces = single_exception.dig(:stacktrace, :frames)
-              traces.replace(traces[-10..-1]) if traces && traces.size > 10
+              if traces && traces.size > @max_stacktrace_frames
+                traces.replace(traces[-@max_stacktrace_frames..-1])
+              end
             end
           elsif single_exceptions = item.payload.dig("exception", "values")
             single_exceptions.each do |single_exception|
               traces = single_exception.dig("stacktrace", "frames")
-              traces.replace(traces[-10..-1]) if traces && traces.size > 10
+              if traces && traces.size > @max_stacktrace_frames
+                traces.replace(traces[-@max_stacktrace_frames..-1])
+              end
             end
           end
 
