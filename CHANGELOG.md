@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Bug Fixes
+
+- Fix: Handle exception with large stacktrace without dropping entire item [#1807](https://github.com/getsentry/sentry-ruby/pull/1807)
+
 ### Miscellaneous
 
 - Warn users about `config.async`'s deprecation [#1803](https://github.com/getsentry/sentry-ruby/pull/1803)
